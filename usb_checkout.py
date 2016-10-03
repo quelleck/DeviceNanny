@@ -26,6 +26,7 @@ def get_lock(process_name):
     another USB action takes place on the same port
     before checkout is completed.
     """
+    # I'd consider making the lock a private static instead.
     get_lock._lock_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
 
     try:
@@ -35,6 +36,8 @@ def get_lock(process_name):
         popups('USB Connection')
     except socket.error:
         logging.warning("[usb_checkout][get_lock] Process already locked.")
+        # I think it should be up to the main routine to handle this exception.
+        # Feels odd having a sys.exit here.
         sys.exit()
 
 
@@ -46,6 +49,7 @@ def create_tempfile(port):
     """
     filename = '/tmp/{}.nanny'.format(port)
     check_for_tempfile(filename)
+    # I'd close this file after opening it, or use a "with" context.
     open(filename, 'w+b')
     return filename
 
@@ -56,8 +60,11 @@ def delete_tempfile(filename):
     :param filename: /tmp/*kernel*.nanny
     """
     try:
+        # If you aren't actually formatting anything, you could pass the
+        # filename directly.
         os.remove("{}".format(filename))
         logging.debug("[usb_checkout][delete_tempfile] Temp file deleted.")
+    # Nit: it'd be better to catch the i/o exception here instead.
     except Exception as e:
         logging.debug(
             "[usb_checkout][delete_tempfile] Temp file doesn't exist. {}".format(
@@ -72,6 +79,8 @@ def check_for_tempfile(filename):
     """
     if os.path.isfile(filename):
         get_lock('usb_checkout')
+        # Again, I think it'd be best if this was the main routine's
+        # functionality.
         sys.exit()
 
 
@@ -81,6 +90,7 @@ def cancelled():
     it will be checked out as missing. Also, if multiple devices were taken, cancelling one
     won't close all checkout processes.
     """
+    # if NOT
     if is_device_connected(port) is False:
         db.check_out('1', device_id)
         slack.help_message(device_name)
@@ -112,18 +122,21 @@ def multiple_checkouts():
     :return: True or None
     """
     pid = get_pid("[s]tart_checkout")
+    # Could return the condition instead
     if len(pid) > 1:
         logging.debug(
             "[usb_checkout][multiple_checkouts] Multiple checkouts in progress.")
         return True
 
 
+# I'd provide a default here
 def timeout(x):
     """
     30 second timer started during checkout. If user doesn't enter info
     before timeout ends, calls cancelled().
     :param x: 30
     """
+    # Why not just do time.sleep(x)?
     for i in range(0, x):
         time.sleep(1)
     logging.warning("[usb_checkout][timeout] TIMEOUT")
@@ -196,6 +209,9 @@ def find_port():
     :return: USB port
     """
     lines = return_log()
+    # This could be stored as a private static in the body of the script.
+    # Also, a more descriptive variable name would be good here, explaining
+    # what this RE is.
     match = "[0-9]-[^:]+"
     matches = [x for x in lines if re.search(match, x)]
     try:
@@ -217,6 +233,7 @@ def get_serial(port):
     :return: Serial number for USB device
     """
     try:
+        # I'd use with open here instead.
         f = open("/sys/bus/usb/devices/{}/serial".format(port))
         for line in f:
             serial = line.rstrip()
@@ -227,6 +244,8 @@ def get_serial(port):
         return serial
     except:
         logging.debug("[usb_checkout][get_serial] Serial number not found.")
+        # I believe functions in Python return None by default, so this
+        # shouldn't be necessary.
         return None
 
 
@@ -238,6 +257,7 @@ def get_user_info():
     """
     try:
         user_input = popups('checkout').decode('utf-8')
+        # Where is this timer coming from?
         timer.terminate()
         return get_info_from_db(user_input.rstrip('\n').split(' '))
     except Exception as e:
@@ -341,12 +361,14 @@ def get_new_device_info(serial):
         sys.exit()
 
 
+# Nit: this method name isn't clear to me.
 def to_db(serial):
     """
     Combines device info provided by user with USB port and serial number.
     """
     device_info = get_new_device_info(serial)
     new_device_id = db.new_device_id()
+    # I'd use += instead
     device_info.extend([new_device_id, get_serial(port), port])
     db.add_to_db(device_info)
     logging.info("[usb_checkout][to_db] Device added: {}".format(device_info))
@@ -392,6 +414,7 @@ def play_sound():
     pygame.mixer.music.load("{}/resources/beep.wav".format(working_dir))
     logging.debug("Play sound.")
     pygame.mixer.music.play()
+    # Nit: is blocking the thread here necessary?
     while pygame.mixer.music.get_busy() is True:
         continue
 
@@ -415,6 +438,8 @@ def main():
     """
     Assigns variables, checks if device is new or needs checked out/in.
     """
+    # Again, I'd try to avoid globals by putting these outside of the function
+    # instead. Though, not sure about device_id and device_name.
     global db
     db = MyDB()
     global port

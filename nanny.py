@@ -285,6 +285,7 @@ def missing_device_ids(missing_devices):
     :param missing_devices: List of ports that are registered but are no longer in use (device is gone)
     :return: The missing device's device IDs
     """
+    # Nit: you could skip the assignment and return directly here.
     device_ids = [db.get_device_id_from_port(x) for x in missing_devices]
     return device_ids
 
@@ -339,6 +340,7 @@ def main():
     have expired checkouts.
     :return:
     """
+    # Could be `if not is_checkout_running():`
     if is_checkout_running() is False:
         clean_tmp_file()
         check_usb_connections()
@@ -351,6 +353,9 @@ if __name__ == "__main__":
     config = configparser.ConfigParser()
     config.read('config/DeviceNanny.ini')
     logging.info("[nanny] Started")
+    # This sort of configuration makes sense outside of the main method
+    # You can throw intialize it right below your imports & constants
+    # thinking of it as a singleton.
     global db
     db = MyDB()
     main()
